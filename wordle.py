@@ -1,30 +1,30 @@
-#import pygame
+import pygame
 import sys
 import random
 import math
 import socket
 import threading
 
-#pygame.init()
+pygame.init()
 
 PORT = 8123
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!disc"
-#IMAGE = pygame.image.load("logo.png")
-#pygame.transform.scale(IMAGE, (IMAGE.get_width()/2, IMAGE.get_height()/2))
+IMAGE = pygame.image.load("logo.png")
+pygame.transform.scale(IMAGE, (IMAGE.get_width()/2, IMAGE.get_height()/2))
 MODE = 1
 DIMENSION = 60
 COLORS = ((145, 145, 142), (232, 213, 39), (29, 184, 71), (255, 255, 255), (0, 0, 0))
 """          grey,              yellow,        green,        white,          black"""
 WORDS_DATABASE = open("DATABASE.txt", "r")
 WORDS = [x.strip() for x in WORDS_DATABASE.readlines()]
-#FONT = pygame.font.SysFont("C059, BOLD", 40)
-#LETTERS = [FONT.render((chr(x)), True, (0, 0, 0)) for x in range(ord('A'), ord('Z')+1)]
+FONT = pygame.font.SysFont("C059, BOLD", 40)
+LETTERS = [FONT.render((chr(x)), True, (0, 0, 0)) for x in range(ord('A'), ord('Z')+1)]
 SCREEN_RES = (1024, 1024)
-#clock = pygame.time.Clock()
-#screen = pygame.display.set_mode(SCREEN_RES)
+clock = pygame.time.Clock()
+screen = pygame.display.set_mode(SCREEN_RES)
 
 
 def verificaCuvant(cuvant_de_ghicit, cuvantul_actual):
@@ -39,7 +39,7 @@ def verificaCuvant(cuvant_de_ghicit, cuvantul_actual):
     return raspuns
 
 
-"""def blit_words(words):
+def blit_words(words):
     x = screen.get_height() / 2 - DIMENSION * 5 / 2 - 4 * 5
     y = 200
     screen.blit(IMAGE, (screen.get_width()/2 - IMAGE.get_width()/2, y-IMAGE.get_height()-10))
@@ -57,7 +57,7 @@ def verificaCuvant(cuvant_de_ghicit, cuvantul_actual):
             x += DIMENSION + 10
         y += DIMENSION + 10
         x = screen.get_height() / 2 - DIMENSION * 5 / 2 - 4 * 5
-"""
+
 
 class Template:
     def __init__(self, i):
@@ -99,11 +99,11 @@ class Template:
             self._win = True
         self._index += 1
 
-   # def blit(self):
-      #  blit_words(self._words)
+    def blit(self):
+        blit_words(self._words)
 
     def update(self):
-        #self.blit()
+        self.blit()
         if server.server_status():
             if not self._win:
                 cuv = server.receive()
@@ -151,14 +151,14 @@ if TYPE_OF_RUN == 0:
 template = Template(i)
 
 while True:
-    """screen.fill((255, 255, 255))
+    screen.fill((255, 255, 255))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             server.close()
             pygame.quit()
-            sys.exit()"""
+            sys.exit()
     template.update()
-   #pygame.display.update()
+    pygame.display.update()
     if template.get_win_state() and not flag:
         template.clear(i)
         print(template._selectedword)
