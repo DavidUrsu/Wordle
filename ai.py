@@ -1,167 +1,180 @@
 import random
 import math
+import socket
+import threading
 
-log_values = {}
+file = open("DATABASE.txt", "r")
+WORDS_DATABASE = tuple(rand.strip() for rand in file.readlines())
+DEFAULT_LETTERS_DICTIONARY = {chr(let+ord('A')):[0]*5 for let in range(int(ord('Z')-ord('A'))+1)}
+for word in WORDS_DATABASE:
+    for lett in range(5):
+        DEFAULT_LETTERS_DICTIONARY[word[lett]][lett] += 1
+DEFAULT_LETTERS_DICTIONARY['sum'] = [len(WORDS_DATABASE)] * 5
+DEFAULT_LETTERS_DICTIONARY = {k: tuple(val) for k, val in DEFAULT_LETTERS_DICTIONARY.items()}
+file = open("secondGuesses.txt", 'r')
+SECOND_GUESS = [x.split() for x in file.readlines()]
+SECOND_GUESS = {k[0]: k[1] if len(k) == 2 else '' for k in SECOND_GUESS}
+run = True
 
-def calculate_word_entropy(word, cuvinte_database):
-    lungimeDatabase = len(cuvinte_database)
-    dict = {}
-    for cuv in cuvinte_database:
-        pattern = []
-        for i in range(5):
-            if word[i] == cuv[i]:
-                pattern.append(2)
-            elif cuv[i] in word:
-                pattern.append(1)
-            else:
-                pattern.append(0)
-        pattern = tuple(pattern)
-        if pattern in dict:
-            dict[pattern] += 1
+PORT = 8123
+SERVER = socket.gethostbyname(socket.gethostname())
+ADDR = (SERVER, PORT)
+FORMAT = 'utf-8'
+DISCONNECT_MESSAGE = "!disc"
+
+
+class Client:
+    def __init__(self):
+        self._client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._client.connect(ADDR)
+        self._message = None
+
+    def send(self, msg):
+        self._client.send(msg.encode(FORMAT))
+
+    def receive(self):
+        self._message = self._client.recv(5).decode(FORMAT)
+        return self.show_message()
+
+    def show_message(self):
+        return self._message
+
+    def close(self):
+        self._client.close()
+
+
+def entropy_math_calc(probability):
+    if probability == 0:
+        return 0
+    return -probability * math.log2(probability)
+
+
+def calculate_word_entropy(word, lett_dict):
+    word_ent = 0
+    seen_letters = set()
+    for pos, lett in enumerate(word):
+        x = lett_dict[lett][pos]
+        s = lett_dict['sum'][pos]
+        green_prob = x/s
+        sum = 0
+        if lett not in seen_letters:
+            grey_prob = 1
+            for y in range(5):
+                grey_prob *= 1 - lett_dict[lett][y]/lett_dict['sum'][y]
+            yellow_prob = 1 - green_prob - grey_prob
         else:
-            dict[pattern] = 1
-    s = 0
-    for x in dict.values():
-        if x not in log_values:
-            log_values[x] = math.log2(x / lungimeDatabase)
-        s -= (x / lungimeDatabase) * log_values[x]
-    return s
+            yellow_prob = 1 - x / s
+            grey_prob = 0
 
-def calculeazaProbabilitati(cuvinte_database):
-    probabilitatiLitere = []
-    for i in range(5):
-        probabilitatiLitere.append([0]*26)
+        word_ent += entropy_math_calc( grey_prob) +entropy_math_calc( yellow_prob) +entropy_math_calc( green_prob)
+        seen_letters.add(lett)
+    return word_ent
 
+
+def filtreazaBazaDeDate(raspuns, myword, lett_dict, cuvinte_database):
+    new_database = []
     for cuvant in cuvinte_database:
-        for litera in list(range(5)):
-            probabilitatiLitere[litera][ ord(cuvant[litera]) - ord('A') ] += 1
-    lungimeDatabase = len(cuvinte_database)
-
-
-    #probabilitate
-    #for i in range(len(probabilitatiLitere)):
-    #    probabilitatiLitere[i] = list(map(lambda x: x/lungimeDatabase, probabilitatiLitere[i]))
-
-    #entropie
-    """
-    for i in range(len(probabilitatiLitere)):
-        for j in range(len(probabilitatiLitere[i])):
-            if probabilitatiLitere[i][j] != 0:
-                probabilitatiLitere[i][j] = -(probabilitatiLitere[i][j] * math.log(probabilitatiLitere[i][j], 2))
-    """
-    for i in probabilitatiLitere:
-        print(i)
-    
-    return probabilitatiLitere
-
-def calculeazaProbabilitateCuvinte(probabilitatiLitere, cuvinte_database):
-    probabilitatiCuvinte = []
-    for cuvant in cuvinte_database:
-        probabiliate = 0
         for i in range(5):
-            probabiliate += probabilitatiLitere[i][ord(cuvant[i]) - ord('A')]
-        probabilitatiCuvinte.append(probabiliate)
+            if raspuns[i] == '2' and not cuvant[i] == myword[i]:
+                break
+            elif raspuns[i] == '1' and ((myword[i] not in cuvant) or (myword[i] == cuvant[i])):
+                break
+            elif raspuns[i] == '0' and myword[i] in cuvant:
+                break
+        else:
+            new_database.append(cuvant)
+    cuvinte_database = new_database
+    for key, val in lett_dict.items():
+        for y in range(5):
+            lett_dict[key][y] = 0
 
-    return probabilitatiCuvinte
+    for word in cuvinte_database:
+        for lett in range(5):
+            lett_dict[word[lett]][lett] += 1
+            lett_dict['sum'][lett] += 1
 
-def filtreazaBazaDeDate(raspuns, cuvantul_actual, cuvinte_database):
-    cuvinte_database.pop( cuvinte_database.index(cuvantul_actual) )
-    for raspuns_pozitie in range(5):
-
-        if raspuns[raspuns_pozitie] == "2":
-            lungimeDatabase = len(cuvinte_database)
-            i=0
-            while i < lungimeDatabase:
-                if cuvinte_database[i][raspuns_pozitie] != cuvantul_actual[raspuns_pozitie]:
-                    cuvinte_database.pop(i)
-                    lungimeDatabase -= 1
-                    i -= 1
-                i += 1
-
-        if raspuns[raspuns_pozitie] == "1":
-            lungimeDatabase = len(cuvinte_database)
-            i=0
-            while i < lungimeDatabase:
-                #de adaugat si daca e diferita lista
-                if (cuvantul_actual[raspuns_pozitie] not in cuvinte_database[i]) or (cuvinte_database[i][raspuns_pozitie] == cuvantul_actual[raspuns_pozitie]):
-                    cuvinte_database.pop(i)
-                    lungimeDatabase -= 1
-                    i -= 1
-                i += 1
-
-        if raspuns[raspuns_pozitie] == "0":
-            lungimeDatabase = len(cuvinte_database)
-            i=0
-            while i < lungimeDatabase:
-                #de adaugat si daca e diferita lista
-                if cuvantul_actual[raspuns_pozitie] in cuvinte_database[i]:
-                    cuvinte_database.pop(i)
-                    lungimeDatabase -= 1
-                    i -= 1
-                i += 1
-    #print(len(cuvinte_database))
     return cuvinte_database
 
-def verificaCuvant(cuvant_de_ghicit, cuvantul_actual):
-    raspuns = ""
-    for i in range(len(cuvantul_actual)):
-        if cuvantul_actual[i]==cuvant_de_ghicit[i]:
-            raspuns += "2"
-            next
-        elif cuvantul_actual[i] in cuvant_de_ghicit:
-            raspuns += "1"
-            next
+
+def calculate_best_word(lett_dict, remaining_words):
+    mx = 0
+    rez = None
+    if len(remaining_words) <= 2:
+        return remaining_words[0]
+    for x in WORDS_DATABASE:
+        k = calculate_word_entropy(x, lett_dict)
+        if k > mx:
+            rez = x
+            mx = k
+    return rez
+
+
+def solve_word():
+    lett_dict = {k: list(val) for k, val in DEFAULT_LETTERS_DICTIONARY.items()}
+    remaining_words = WORDS_DATABASE[:]
+    # myword = calculate_best_word(lett_dict, remaining_words)
+    myword = 'TAREI'
+    guesses = 1
+    total_guesses = []
+    while True:
+        client.send(myword)
+        total_guesses.append(myword)
+        raspuns = client.receive()
+        if raspuns == '22222':
+            break
+        if raspuns == '!disc':
+            global run
+            run = False
+            break
+        remaining_words = filtreazaBazaDeDate(raspuns, myword, lett_dict, remaining_words)
+        if guesses == 1:
+            myword = SECOND_GUESS[raspuns]
         else:
-            raspuns+="0"
-    return raspuns
+            myword = calculate_best_word(lett_dict, remaining_words)
+        guesses += 1
+    return total_guesses
 
-def ghicireCuvant(cuvant_de_ghicit, cuvinte_database):
-    cuvantul_actual = ""
-    con = 1
-    """
-    while cuvant_de_ghicit != cuvantul_actual:
-        probabilitatiLitere = calculeazaProbabilitati(cuvinte_database)
 
-        probabilitatiCuvinte = calculeazaProbabilitateCuvinte(probabilitatiLitere, cuvinte_database)
+client = Client()
 
-        cuvantul_actual = cuvinte_database[probabilitatiCuvinte.index(max(probabilitatiCuvinte))]
+#THE FUNCTION WE USED FOR CREATING secondGuess.txt
 
-        cuvinte_database = filtreazaBazaDeDate(verificaCuvant(cuvant_de_ghicit, cuvantul_actual), cuvantul_actual, cuvinte_database)
+def generate_second_guesses():
+    patterns = []
+    file = open('secondGuesses.txt', 'w')
+    def generate_pattern(k, s=''):
+        if k == 5:
+            patterns.append(s)
+            return
+        for i in ('0', '1', '2'):
+            t = s+i
+            generate_pattern(k+1, t)
+    generate_pattern(0)
+    for patt in patterns:
+        print(patt)
+        lett_dict = {k: list(val) for k, val in DEFAULT_LETTERS_DICTIONARY.items()}
+        cuvinte = WORDS_DATABASE[:]
+        cuvinte = filtreazaBazaDeDate(patt, 'TAREI', lett_dict, cuvinte)
+        x = None
+        if len(cuvinte) >= 1:
+            x = calculate_best_word(lett_dict, cuvinte)
+        file.write(f'{patt} {x if x is not None else ""}\n')
+    file.close()
 
-        print(cuvantul_actual, verificaCuvant(cuvant_de_ghicit, cuvantul_actual))
-        con = con + 1
-    """
 
-    cuvantul_actual = "CARTI"
-    
-    cuvinte_database = filtreazaBazaDeDate(verificaCuvant(cuvant_de_ghicit, cuvantul_actual), cuvantul_actual, cuvinte_database)
-    #print(cuvantul_actual, verificaCuvant(cuvant_de_ghicit, cuvantul_actual))
-
-    while cuvant_de_ghicit != cuvantul_actual:
-        probabilitatiCuvinte = []
-        for i in cuvinte_database:
-            probabilitatiCuvinte.append(calculate_word_entropy(i, cuvinte_database))
-
-        cuvantul_actual = cuvinte_database[probabilitatiCuvinte.index(max(probabilitatiCuvinte))]
-
-        cuvinte_database = filtreazaBazaDeDate(verificaCuvant(cuvant_de_ghicit, cuvantul_actual), cuvantul_actual, cuvinte_database)
-
-        #print(cuvantul_actual, verificaCuvant(cuvant_de_ghicit, cuvantul_actual))
-        con = con + 1
-    return con
-
-def driverCode():
-    with open("cuvinte_wordle.txt") as cuvinte_database:
-        cuvinte_database_nemodificat = tuple([rand.strip() for rand in cuvinte_database])
-        sum = 0
-        numarIncercari = 100
-        for _ in range(numarIncercari):
-            cuvinte_database = list(cuvinte_database_nemodificat)
-            #print(len(cuvinte_database))
-            cuvant_de_ghicit = random.choice(cuvinte_database)
-            sum += ghicireCuvant(cuvant_de_ghicit, cuvinte_database)
-            #print("_"*20)
-        print("Media numarului de incercari: " + str(sum/numarIncercari))
-
-if __name__=="__main__":
-    driverCode()
+file = open("Answers.txt", 'w')
+if __name__ == "__main__":
+    s = 0
+    i = 1
+    while run:
+        x = solve_word()
+        print(x)
+        s += len(x)
+        rez = str(x[-1]) + ':'
+        for y in x:
+            rez += ' ' + str(y)
+        file.write(f'{rez}\n')
+    average = s/len(WORDS_DATABASE)
+    file.write(f'Average number of guesses is {average}\n')
+    file.close()
+    client.close()
