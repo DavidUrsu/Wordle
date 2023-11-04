@@ -52,5 +52,3 @@ ce se potrivesc raspunsului. Pe acesta noua baza de date calculam cel mai bun cu
 
     
     
-    
-!!!!Recomandam utilizarea Debuggerului pentru o mai buna intelegere a proiectului!!!!
